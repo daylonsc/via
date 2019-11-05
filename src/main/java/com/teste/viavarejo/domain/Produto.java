@@ -1,9 +1,8 @@
-package com.teste.viavarejo.entity;
+package com.teste.viavarejo.domain;
 
 import java.math.BigDecimal;
 
 public class Produto {
-
     private Long codigo;
 
     private String nome;

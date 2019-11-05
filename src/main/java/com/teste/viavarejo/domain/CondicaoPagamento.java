@@ -1,10 +1,10 @@
-package com.teste.viavarejo.vo;
+package com.teste.viavarejo.domain;
 
 import java.math.BigDecimal;
 
-public class CondicaoPagamentoVO {
+public class CondicaoPagamento {
     private BigDecimal valorEntrada;
-    private int qtdeParcela;
+    private int qtdeParcelas;
 
     public BigDecimal getValorEntrada() {
         return valorEntrada;
@@ -14,11 +14,11 @@ public class CondicaoPagamentoVO {
         this.valorEntrada = valorEntrada;
     }
 
-    public int getQtdeParcela() {
-        return qtdeParcela;
+    public int getQtdeParcelas() {
+        return qtdeParcelas;
     }
 
-    public void setQtdeParcela(int qtdeParcela) {
-        this.qtdeParcela = qtdeParcela;
+    public void setQtdeParcelas(int qtdeParcelas) {
+        this.qtdeParcelas = qtdeParcelas;
     }
 }
