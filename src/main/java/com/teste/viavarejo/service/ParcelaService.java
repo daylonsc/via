@@ -9,11 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 
 @Service
@@ -26,17 +22,20 @@ public class ParcelaService {
         List<Parcela> parcelas = new ArrayList<>();
         Parcela parcela;
         int numeroParcelas = produtoCondicaoPagamentoVO.getCondicaoPagamento().getQtdeParcelas();
-
-        if (numeroParcelas < 6) {
+        BigDecimal juros = BigDecimal.valueOf(0);
+        if (numeroParcelas <= 6) {
             parcela = getPacelaSemJuros(numeroParcelas, produtoCondicaoPagamentoVO);
         } else {
             parcela = getPacelaComJuros(numeroParcelas, produtoCondicaoPagamentoVO);
+            juros = parcela.getTaxaJurosAoMes().add(BigDecimal.valueOf(1));
         }
 
         BigDecimal valorParcela = parcela.getValor();
+
         for (int i = 1; i <= numeroParcelas; i++) {
             valorParcela = valorParcela.add(valorParcela.multiply(parcela.getTaxaJurosAoMes()));
-            parcelas.add(new Parcela(i, valorParcela, parcela.getTaxaJurosAoMes()));
+            parcelas.add(new Parcela(i, valorParcela.setScale(2, BigDecimal.ROUND_HALF_EVEN), juros.setScale(4, BigDecimal.ROUND_HALF_EVEN)));
+            juros = juros.multiply(juros);
         }
 
         return parcelas;
@@ -44,11 +43,12 @@ public class ParcelaService {
 
     private Parcela getPacelaComJuros(int numeroParcelas, ProdutoCondicaoPagamentoVO produtoCondicaoPagamentoVO) {
         BigDecimal juros = getTaxaAcumulada();
+//        juros = BigDecimal.valueOf(1.15);
 
         BigDecimal valorProduto = produtoCondicaoPagamentoVO.getProduto().getValor();
         BigDecimal valorEntrada = produtoCondicaoPagamentoVO.getCondicaoPagamento().getValorEntrada();
         BigDecimal valorProdutoSemEntrada = valorProduto.subtract(valorEntrada);
-//        BigDecimal juros = taxaSelicAcumulada30dias.divide(new BigDecimal(100));
+        juros = juros.divide(new BigDecimal(100));
         BigDecimal potencia = juros.add(BigDecimal.ONE).pow(numeroParcelas);
         BigDecimal denominador = BigDecimal.ONE.subtract(BigDecimal.ONE.divide(potencia, 20, RoundingMode.HALF_EVEN));
         BigDecimal valorParcelaComJuros = valorProdutoSemEntrada.multiply(juros).divide(denominador, 2, RoundingMode.HALF_EVEN);
@@ -68,30 +68,19 @@ public class ParcelaService {
 
     private BigDecimal getTaxaAcumulada() {
         BigDecimal taxaAcumulada = BigDecimal.valueOf(0);
-        List<TaxaSelic> taxaSelicList = selicRestClient.getTaxaSelic();
-        taxaSelicList = ordernarListaTaxaSelic(taxaSelicList);
+        List<TaxaSelic> taxaSelicList = selicRestClient.getUltimosTaxaSelicAcumuladaPorMeses("1");
         for (TaxaSelic t : taxaSelicList) {
             taxaAcumulada = taxaAcumulada.add(t.getValor());
         }
-//        taxaSelicList.forEach(item->taxaAcumulada.add(item.getValor()));
         return taxaAcumulada;
     }
 
-    private Date stringToDate(String data) {
-        Date date1 = null;
-        try {
-            date1 = new SimpleDateFormat("dd/MM/yyyy").parse(data);
-        } catch (ParseException e) {
-            e.printStackTrace();
+    private BigDecimal getUltimos30Dias() {
+        BigDecimal taxaAcumulada = BigDecimal.valueOf(0);
+        List<TaxaSelic> taxaSelicList = selicRestClient.getUltimosTaxaSelicPorDia("30");
+        for (TaxaSelic t : taxaSelicList) {
+            taxaAcumulada = taxaAcumulada.add(t.getValor());
         }
-        return date1;
-    }
-
-    private List<TaxaSelic> ordernarListaTaxaSelic(List<TaxaSelic> list) {
-        list.forEach(item -> item.setDateTime(stringToDate(item.getData())));
-
-        list.sort(Comparator.comparing(TaxaSelic::getDateTime).reversed());
-
-        return new ArrayList<>(list.subList(0, 30));
+        return taxaAcumulada;
     }
 }
