@@ -15,72 +15,71 @@ import java.util.List;
 @Service
 public class ParcelaService {
 
+    private final int MAIOR = 1;
+
+    private SelicRestClient selicRestClient;
+
     @Autowired
-    SelicRestClient selicRestClient;
+    public ParcelaService(SelicRestClient selicRestClient) {
+        this.selicRestClient = selicRestClient;
+    }
 
     public List<Parcela> getParcelas(ProdutoCondicaoPagamentoVO produtoCondicaoPagamentoVO) {
         List<Parcela> parcelas = new ArrayList<>();
-        Parcela parcela;
         int numeroParcelas = produtoCondicaoPagamentoVO.getCondicaoPagamento().getQtdeParcelas();
-        BigDecimal juros = BigDecimal.valueOf(0);
-        if (numeroParcelas <= 6) {
-            parcela = getPacelaSemJuros(numeroParcelas, produtoCondicaoPagamentoVO);
-        } else {
-            parcela = getPacelaComJuros(numeroParcelas, produtoCondicaoPagamentoVO);
-            juros = parcela.getTaxaJurosAoMes().add(BigDecimal.valueOf(1));
+        BigDecimal juros = BigDecimal.ZERO;
+        BigDecimal taxaJuros = BigDecimal.ZERO;
+
+        if (numeroParcelas > 6) {
+            taxaJuros = getTaxaJuros();
+            juros = taxaJuros.add(BigDecimal.ONE);
         }
 
-        BigDecimal valorParcela = parcela.getValor();
+        BigDecimal parcelaSemJuros = getValorParcelaSemJuros(produtoCondicaoPagamentoVO, numeroParcelas);
 
         for (int i = 1; i <= numeroParcelas; i++) {
-            valorParcela = valorParcela.add(valorParcela.multiply(parcela.getTaxaJurosAoMes()));
-            parcelas.add(new Parcela(i, valorParcela.setScale(2, BigDecimal.ROUND_HALF_EVEN), juros.setScale(4, BigDecimal.ROUND_HALF_EVEN)));
+            Parcela parcela = new Parcela();
+            parcela.setNumeroParcela(i);
+            parcela.setTaxaJurosAoMes(taxaJuros.setScale(6, RoundingMode.HALF_EVEN));
+            parcela.setValorParcelaSemJuros(parcelaSemJuros);
+            parcela.setValorParcelaComJuros(taxaJuros.compareTo(BigDecimal.ZERO) == MAIOR ? getValorParcelaComJuros(parcelaSemJuros, taxaJuros, i) : parcelaSemJuros);
+            parcela.setValorJuros(parcela.getValorParcelaComJuros().subtract(parcelaSemJuros));
+
+            parcelas.add(parcela);
+
             juros = juros.multiply(juros);
+            parcela.setJurosAcumulado(juros.setScale(4, RoundingMode.HALF_EVEN));
         }
 
         return parcelas;
     }
 
-    private Parcela getPacelaComJuros(int numeroParcelas, ProdutoCondicaoPagamentoVO produtoCondicaoPagamentoVO) {
-        BigDecimal juros = getTaxaAcumulada();
-//        juros = BigDecimal.valueOf(1.15);
-
+    private BigDecimal getValorParcelaSemJuros(ProdutoCondicaoPagamentoVO produtoCondicaoPagamentoVO, int numeroParcelas) {
         BigDecimal valorProduto = produtoCondicaoPagamentoVO.getProduto().getValor();
         BigDecimal valorEntrada = produtoCondicaoPagamentoVO.getCondicaoPagamento().getValorEntrada();
-        BigDecimal valorProdutoSemEntrada = valorProduto.subtract(valorEntrada);
-        juros = juros.divide(new BigDecimal(100));
-        BigDecimal potencia = juros.add(BigDecimal.ONE).pow(numeroParcelas);
-        BigDecimal denominador = BigDecimal.ONE.subtract(BigDecimal.ONE.divide(potencia, 20, RoundingMode.HALF_EVEN));
-        BigDecimal valorParcelaComJuros = valorProdutoSemEntrada.multiply(juros).divide(denominador, 2, RoundingMode.HALF_EVEN);
-        BigDecimal valorParcelaSemJuros = valorProdutoSemEntrada.divide(new BigDecimal(numeroParcelas), 2, RoundingMode.HALF_EVEN);
+        BigDecimal valorTotal = valorProduto.subtract(valorEntrada);
 
-        return new Parcela(valorParcelaSemJuros, juros);
+        return valorTotal.divide(BigDecimal.valueOf(numeroParcelas), 2, RoundingMode.HALF_EVEN);
     }
 
-    private Parcela getPacelaSemJuros(int numeroParcelas, ProdutoCondicaoPagamentoVO produtoCondicaoPagamentoVO) {
-        BigDecimal valorProduto = produtoCondicaoPagamentoVO.getProduto().getValor();
-        BigDecimal valorEntrada = produtoCondicaoPagamentoVO.getCondicaoPagamento().getValorEntrada();
-        BigDecimal valorProdutoSemEntrada = valorProduto.subtract(valorEntrada);
-        BigDecimal valorParcelaSemJuros = valorProdutoSemEntrada.divide(new BigDecimal(numeroParcelas), 2, RoundingMode.HALF_EVEN);
+    private BigDecimal getValorParcelaComJuros(BigDecimal valorParcelaSemJuros, BigDecimal taxaJuros, int numeroParcela) {
+        BigDecimal potencia = taxaJuros.add(BigDecimal.ONE).pow(numeroParcela);
+        BigDecimal denominador = BigDecimal.ONE.subtract(BigDecimal.ONE.divide(potencia, 20, RoundingMode.HALF_EVEN));
+        BigDecimal valorParcelaComJuros = valorParcelaSemJuros.multiply(taxaJuros).divide(denominador, 2, RoundingMode.HALF_EVEN);
+        return valorParcelaComJuros.multiply(BigDecimal.valueOf(numeroParcela));
+    }
 
-        return new Parcela(valorParcelaSemJuros, BigDecimal.valueOf(0));
+    private BigDecimal getTaxaJuros() {
+        BigDecimal juros = getTaxaAcumulada();
+        juros = juros.divide(BigDecimal.valueOf(100));
+        return juros;
     }
 
     private BigDecimal getTaxaAcumulada() {
-        BigDecimal taxaAcumulada = BigDecimal.valueOf(0);
-        List<TaxaSelic> taxaSelicList = selicRestClient.getUltimosTaxaSelicAcumuladaPorMeses("1");
-        for (TaxaSelic t : taxaSelicList) {
-            taxaAcumulada = taxaAcumulada.add(t.getValor());
-        }
-        return taxaAcumulada;
+        return selicRestClient.getUltimosTaxaSelicAcumuladaPorMeses("1").get(0).getValor();
     }
 
-    private BigDecimal getUltimos30Dias() {
-        BigDecimal taxaAcumulada = BigDecimal.valueOf(0);
-        List<TaxaSelic> taxaSelicList = selicRestClient.getUltimosTaxaSelicPorDia("30");
-        for (TaxaSelic t : taxaSelicList) {
-            taxaAcumulada = taxaAcumulada.add(t.getValor());
-        }
-        return taxaAcumulada;
+    private List<TaxaSelic> getUltimos30Dias() {
+        return selicRestClient.getUltimosTaxaSelicPorDia("30");
     }
 }
