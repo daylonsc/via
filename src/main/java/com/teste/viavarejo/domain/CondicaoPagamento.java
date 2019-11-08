@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 
 public class CondicaoPagamento {
     private BigDecimal valorEntrada;
+
     private int qtdeParcelas;
 
     public BigDecimal getValorEntrada() {

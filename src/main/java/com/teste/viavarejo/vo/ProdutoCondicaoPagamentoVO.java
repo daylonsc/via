@@ -4,7 +4,9 @@ import com.teste.viavarejo.domain.CondicaoPagamento;
 import com.teste.viavarejo.domain.Produto;
 
 public class ProdutoCondicaoPagamentoVO {
+
   private Produto produto;
+
   private CondicaoPagamento condicaoPagamento;
 
   public Produto getProduto() {

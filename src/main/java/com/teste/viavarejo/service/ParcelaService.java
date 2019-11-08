@@ -1,7 +1,9 @@
 package com.teste.viavarejo.service;
 
 import com.teste.viavarejo.client.SelicRestClient;
+import com.teste.viavarejo.domain.CondicaoPagamento;
 import com.teste.viavarejo.domain.Parcela;
+import com.teste.viavarejo.domain.Produto;
 import com.teste.viavarejo.domain.TaxaSelic;
 import com.teste.viavarejo.vo.ProdutoCondicaoPagamentoVO;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,8 @@ import java.util.List;
 public class ParcelaService {
 
     private final int MAIOR = 1;
+    private final int IGUAL = 0;
+    private final int MENOR = -1;
 
     private SelicRestClient selicRestClient;
 
@@ -25,6 +29,9 @@ public class ParcelaService {
     }
 
     public List<Parcela> getParcelas(ProdutoCondicaoPagamentoVO produtoCondicaoPagamentoVO) {
+
+        validarCampos(produtoCondicaoPagamentoVO);
+
         List<Parcela> parcelas = new ArrayList<>();
         int numeroParcelas = produtoCondicaoPagamentoVO.getCondicaoPagamento().getQtdeParcelas();
         BigDecimal juros = BigDecimal.ZERO;
@@ -81,5 +88,18 @@ public class ParcelaService {
 
     private List<TaxaSelic> getUltimos30Dias() {
         return selicRestClient.getUltimosTaxaSelicPorDia("30");
+    }
+
+    private void validarCampos(ProdutoCondicaoPagamentoVO produtoCondicaoPagamentoVO) {
+        Produto produto = produtoCondicaoPagamentoVO.getProduto();
+        CondicaoPagamento condicaoPagamento = produtoCondicaoPagamentoVO.getCondicaoPagamento();
+
+        if (condicaoPagamento.getValorEntrada().compareTo(produto.getValor()) == MAIOR) {
+            throw new RuntimeException("Entrada não pode ser maior que o valor do produto!");
+        } else if (condicaoPagamento.getValorEntrada().compareTo(produto.getValor()) == IGUAL) {
+            throw new RuntimeException("Entrada não pode ser igual a o valor do produto!");
+        } else if (condicaoPagamento.getQtdeParcelas() < 1) {
+            throw new RuntimeException("Total de parcela tem que ser maior que zero!");
+        }
     }
 }
